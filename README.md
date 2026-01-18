@@ -2,7 +2,7 @@
 
 ## 📘 Overview
 
-**FastAPI Blog** is a fully featured backend-only blogging system built using **FastAPI**, **SQLAlchemy ORM**, and **Pydantic**. The project follows a clean and scalable architecture using the **Repository Pattern**, **eager loading for optimized queries**, and a well-structured module layout suitable for real-world production applications.
+**FastAPI Blog** is a fully featured backend-only, Dockerized blogging system built using **FastAPI**, **SQLAlchemy ORM**, and **Pydantic**. The project follows a clean and scalable architecture using the **Repository Pattern**, **eager loading for optimized queries**, and a well-structured module layout suitable for real-world production applications.
 
 This backend handles user authentication, posts, comments, likes, tags, profiles, and a follow system between users. It demonstrates how to implement complete business logic in a clean and maintainable way.
 
@@ -109,6 +109,9 @@ fastapi-blog/
 │
 ├── .env                    # Environment configuration
 ├── .env.example
+├── .dockerignore           # Docker ignore file
+├── Dockerfile              # Docker image definition
+├── docker-compose.yml      # Docker Compose configuration
 ├── alembic.ini
 ├── main.py                 # FastAPI entry point
 └── requirements.txt        # Dependencies
@@ -160,6 +163,64 @@ python -m scripts.seed
 
 ```
 uvicorn main:app --reload
+```
+
+---
+
+## 🐳 Docker Setup
+
+### Prerequisites
+
+* Docker installed on your system
+* Docker Compose installed on your system
+
+### Quick Start with Docker
+
+#### 1. **Clone the repository**
+
+```
+git clone https://github.com/IslamAhmd95/blogify-api
+cd blogify-api/
+```
+
+#### 2. **Setup environment variables**
+
+```
+cp .env.example .env
+```
+
+Make sure to configure your `.env` file with the appropriate database credentials and other settings.
+
+#### 3. **Build and start containers**
+
+```
+docker-compose up --build
+```
+
+This will:
+* Build the FastAPI backend image
+* Start MySQL 8.0 database container
+* Start the FastAPI backend container
+* Automatically create the database volume for data persistence
+
+#### 4. **Apply migrations**
+
+In a new terminal, run migrations inside the backend container:
+
+```
+docker-compose exec backend alembic upgrade head
+```
+
+#### 5. **Seed the database (optional)**
+
+```
+docker-compose exec backend python -m scripts.seed
+```
+
+#### 6. **Access the application**
+
+* **API**: http://localhost:8001
+* **API Documentation**: http://localhost:8001/docs
 ```
 
 ---

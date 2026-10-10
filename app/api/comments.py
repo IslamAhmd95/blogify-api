@@ -16,7 +16,7 @@ from app.schemas.comment_schema import (
 
 
 router = APIRouter(
-    prefix="/comments",
+    prefix="/api/comments",
     tags=["comments"]
 )
 

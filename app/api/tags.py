@@ -10,7 +10,7 @@ from app.core.helpers import admin_required
 
 
 router = APIRouter(
-    prefix="/tags", tags=["Tags"]
+    prefix="/api/tags", tags=["Tags"]
 )
 
 

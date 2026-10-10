@@ -44,5 +44,10 @@ class AfterLoginSchema(Token):
 
 
 class TokenData(BaseModel):
-    email: EmailStr | None = None
+    sub: int
+    type: str
     role: str
+    family_id: str | None = None
+    exp: int
+    iat: int
+    jti: str

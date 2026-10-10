@@ -24,7 +24,7 @@ from app.schemas.user_schema import ReadUser
 
 
 router = APIRouter(
-    prefix="/posts",
+    prefix="/api/posts",
     tags=["Posts"]
 )
 

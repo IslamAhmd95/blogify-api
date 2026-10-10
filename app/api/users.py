@@ -21,7 +21,7 @@ from app.schemas.user_schema import (
 
 
 router = APIRouter(
-    prefix="/users", tags=["Users"]
+    prefix="/api/users", tags=["Users"]
 )
 
 

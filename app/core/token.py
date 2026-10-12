@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from app.core.config import settings
 from app.core.token_store import (
     is_access_token_blacklisted, is_refresh_token_revoked, is_refresh_tokens_family_revoked,
-    revoke_refresh_tokens_family
+    revoke_refresh_tokens_family, get_user_tokens_valid_after, REFRESH_TOKEN_EXPIRE_SECONDS
 )
 from app.schemas.auth_schema import TokenData
 
@@ -18,7 +18,6 @@ SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
-REFRESH_TOKEN_EXPIRE_SECONDS = REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
 
 
 credentials_exception = HTTPException(
@@ -69,12 +68,21 @@ def verify_token(token: str, expected_type: str):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         token_data = TokenData(**payload)
     except ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token is not valid")
+        # a distinct message so the frontend knows it should call /refresh
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
     except (InvalidTokenError, ValidationError):
         raise credentials_exception
 
     if token_data.type != expected_type:
         raise credentials_exception
+
+    # logout from all devices / password change: reject every token issued before that moment
+    valid_after = get_user_tokens_valid_after(token_data.sub)
+    if valid_after and token_data.iat < valid_after:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been terminated, please log in again"
+        )
 
     if expected_type == "refresh":
         if token_data.family_id and is_refresh_tokens_family_revoked(token_data.family_id):

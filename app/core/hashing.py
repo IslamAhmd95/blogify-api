@@ -9,3 +9,8 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_hash.verify(plain_password, hashed_password)
+
+
+# compared against when the user doesn't exist, so "unknown user" takes as long as "wrong password"
+# (otherwise response time tells an attacker which emails are registered)
+DUMMY_PASSWORD_HASH = hash_password("dummy-password")

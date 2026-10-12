@@ -5,10 +5,13 @@ from sqlalchemy.orm import Session
 from app.core.token import (
     create_token, verify_token, get_remaining_ttl, credentials_exception, REFRESH_TOKEN_EXPIRE_SECONDS
 )
-from app.core.token_store import blacklist_access_token, revoke_refresh_token, revoke_refresh_tokens_family
+from app.core.token_store import (
+    blacklist_access_token, revoke_refresh_token, revoke_refresh_tokens_family, revoke_all_user_tokens,
+    is_login_locked, register_failed_login, reset_failed_logins
+)
 from app.models.user import User
 from app.models.profile import Profile
-from app.core.hashing import hash_password, verify_password
+from app.core.hashing import hash_password, verify_password, DUMMY_PASSWORD_HASH
 from app.schemas.auth_schema import SignUpSchema, LoginSchema, TokenData
 from app.core.helpers import (
     check_email_exists, check_username_exists, refresh_token_set_cookie, refresh_token_delete_cookie,
@@ -48,20 +51,29 @@ def signup(data: SignUpSchema, db: Session):
         )
 
 
-def login(data: LoginSchema, db: Session, response: Response):
-    user = db.scalar(select(User).where(or_(
-        User.email == data.login, User.username == data.login)))
-    if not user:
+def login(data: LoginSchema, db: Session, response: Response, client_ip: str):
+    # brute force protection, keyed by ip + login so one attacker can't lock everyone out of an account
+    attempts_key = f"{client_ip}:{data.login.lower()}"
+    if is_login_locked(attempts_key):
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts, try again later"
         )
 
-    if not verify_password(data.password, user.password):
+    user = db.scalar(select(User).where(or_(
+        User.email == data.login, User.username == data.login)))
+
+    # same error (and same timing, via the dummy hash) for unknown user and wrong password, so the response doesn't reveal which accounts exist
+    password_hash = user.password if user and user.password else DUMMY_PASSWORD_HASH
+    password_ok = verify_password(data.password, password_hash)
+    if not user or not user.password or not password_ok:
+        register_failed_login(attempts_key)
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Incorrect password"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
         )
+
+    reset_failed_logins(attempts_key)
 
     # JWT "sub" must be a string (PyJWT >= 2.10 rejects non-string subjects)
     access_token = create_token(
@@ -93,8 +105,16 @@ def refresh(request: Request, response: Response, db: Session):
     if user is None:
         raise credentials_exception
 
-    # rotation: the old refresh token can never be used again
-    revoke_refresh_token(token_data.jti, get_remaining_ttl(token_data.exp))
+    # rotation: the old refresh token can never be used again.
+    # verify_token already checked it isn't revoked, but two requests with the same token can both pass
+    # that check; revoking is atomic, so if we lose the race this is a reuse
+    if not revoke_refresh_token(token_data.jti, get_remaining_ttl(token_data.exp)):
+        if token_data.family_id:
+            revoke_refresh_tokens_family(token_data.family_id, REFRESH_TOKEN_EXPIRE_SECONDS)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has been revoked"
+        )
 
     new_access_token = create_token(
         data={"sub": str(user.id), "role": user.role},
@@ -128,4 +148,10 @@ def logout(request: Request, response: Response, access_token_data: TokenData):
             if refresh_token_data.family_id:
                 revoke_refresh_tokens_family(refresh_token_data.family_id, REFRESH_TOKEN_EXPIRE_SECONDS)
 
+    refresh_token_delete_cookie(response)
+
+
+def logout_all(response: Response, access_token_data: TokenData):
+    # invalidates every access and refresh token of the user, on every device
+    revoke_all_user_tokens(access_token_data.sub)
     refresh_token_delete_cookie(response)

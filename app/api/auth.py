@@ -25,6 +25,7 @@ def signup_route(data: SignUpSchema, db: Session = Depends(get_db)):
 
 @router.post('/login', response_model=AfterLoginSchema, status_code=status.HTTP_200_OK)
 def login_route(
+    request: Request,
     response: Response,
     username: str | None = Form(None),
     email: EmailStr | None = Form(None),
@@ -35,7 +36,8 @@ def login_route(
         raise HTTPException(status_code=400, detail="Username or email required")
 
     schema = LoginSchema(login=username or email or '', password=password)
-    user, access_token = auth_repository.login(schema, db, response)
+    client_ip = request.client.host if request.client else "unknown"
+    user, access_token = auth_repository.login(schema, db, response, client_ip)
     
     return {"user": UserReadSchema.model_validate(user), "access_token": access_token, "token_type": "bearer"}
 
@@ -58,3 +60,12 @@ def logout_route(
 ):
     auth_repository.logout(request, response, access_token_data)
     return {"message": "Logged out successfully"}
+
+
+@router.post('/logout-all', status_code=status.HTTP_200_OK)
+def logout_all_route(
+    response: Response,
+    access_token_data: Annotated[TokenData, Depends(get_access_token_data)]
+):
+    auth_repository.logout_all(response, access_token_data)
+    return {"message": "Logged out from all devices successfully"}

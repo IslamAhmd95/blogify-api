@@ -13,10 +13,10 @@ from app.core.config import settings
 REFRESH_TOKEN_COOKIE_NAME = "refresh_token"
 # shared by set_cookie and delete_cookie: the browser only deletes a cookie if these match
 REFRESH_TOKEN_COOKIE_OPTIONS = {
-    "httponly": True,       # Prevents JS from reading it (Blocks XSS)
-    "secure": True,         # Requires HTTPS
-    "samesite": "strict",   # Blocks cross-site request forgery (CSRF)
-    "path": "/api/auth",    # Browser only sends it to the auth routes (refresh, logout)
+    "httponly": True,                       # Prevents JS from reading it (Blocks XSS)
+    "secure": settings.COOKIE_SECURE,       # Requires HTTPS
+    "samesite": settings.COOKIE_SAMESITE,   # strict blocks cross-site request forgery (CSRF)
+    "path": "/api/auth",                    # Browser only sends it to the auth routes (refresh, logout)
 }
 
 

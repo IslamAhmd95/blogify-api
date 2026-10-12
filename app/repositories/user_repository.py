@@ -10,6 +10,7 @@ from app.schemas.user_schema import UpdatePassword, UserFilter
 from app.core.hashing import hash_password, verify_password
 from app.core.enums import RoleEnum, OrderEnum
 from app.core.helpers import check_email_exists, check_username_exists
+from app.core.token_store import revoke_all_user_tokens
 
 
 def get_user_by_id(db: Session, user_id: int) -> User:
@@ -101,6 +102,9 @@ def update_password(db: Session, user_id: int, data: UpdatePassword) -> dict:
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An error occurred while updating the password: {str(e)}.")
+
+    # if the password was changed because the account was compromised, the attacker's sessions must die too
+    revoke_all_user_tokens(user.id)
     
 
 def get_all_users(db: Session, filters: UserFilter):
